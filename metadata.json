@@ -1,0 +1,6 @@
+{
+  "name": "CSC 101 Interactive Study Portal",
+  "description": "An interactive study guide, practice quiz, and visual sandbox for CSC 101 concepts such as binary math, logic gates, network topologies, and CPU cycles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
