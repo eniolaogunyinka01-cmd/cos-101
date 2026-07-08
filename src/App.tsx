@@ -16,12 +16,37 @@ import {
   ChevronDown,
   ChevronUp,
   Sun,
-  Moon
+  Moon,
+  Loader2,
+  LogOut
 } from "lucide-react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "./firebase";
+import { signOut } from "./authService";
+import AuthScreen from "./components/AuthScreen";
 
 type TabType = "handbook" | "tools" | "quiz" | "tutor";
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (e) {
+      console.error("Error signing out:", e);
+    }
+  };
+
   const [activeTab, setActiveTab ] = useState<TabType>(() => {
     try {
       const saved = localStorage.getItem("csc101_activeTab");
@@ -108,6 +133,21 @@ export default function App() {
     setLastPercent(percent);
   }, [percent]);
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white font-sans p-6">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mx-auto mb-4" />
+          <p className="text-sm font-semibold tracking-wider text-slate-400 uppercase">Verifying student credentials...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <AuthScreen onAuthSuccess={() => {}} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 selection:bg-indigo-500 selection:text-white">
       {/* Top Header Bar */}
@@ -159,7 +199,7 @@ export default function App() {
                   Student Profile
                 </span>
                 <span className="text-[11px] text-white font-medium truncate block mt-1">
-                  eniolaogunyinka01@gmail.com
+                  {currentUser?.email}
                 </span>
               </div>
             </div>
@@ -216,6 +256,17 @@ export default function App() {
                 />
               )}
             </motion.div>
+            <div className="mt-3 pt-2.5 border-t border-slate-700/60 flex justify-between items-center">
+              <span className="text-[10px] font-semibold text-slate-400">Secure Study Session</span>
+              <button 
+                onClick={handleSignOut}
+                className="text-[10px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-colors"
+                title="Sign Out of Portal"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
