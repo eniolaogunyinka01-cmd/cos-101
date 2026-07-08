@@ -4,7 +4,7 @@ import {
   signIn, 
   signUp, 
   forgotPassword, 
-  isUniversityEmail 
+  isValidEmail 
 } from "../authService";
 import { 
   Cpu, 
@@ -29,16 +29,14 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [enforceUniEmail, setEnforceUniEmail] = useState(true);
   
   // Status states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Email format validation
-  const isEmailValid = email.includes("@") && email.includes(".");
-  const isUniEmail = isUniversityEmail(email);
+  // Email format validation using standard regex
+  const isEmailValid = isValidEmail(email);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +44,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     setSuccessMessage(null);
 
     if (!email) {
-      setError("Please enter your student email address.");
+      setError("Please enter your email address.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setError("Please enter a valid email address (e.g., student@domain.com).");
       return;
     }
 
@@ -66,7 +69,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           onAuthSuccess();
         }
       } else if (mode === "signup") {
-        const res = await signUp(email, password, enforceUniEmail);
+        const res = await signUp(email, password);
         if (res.error) {
           setError(res.error);
         } else {
@@ -174,8 +177,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             </h2>
             <p className="text-xs text-slate-400 mt-1">
               {mode === "signin" && "Log in to retrieve your study progress, handbook reading list, and quiz scores."}
-              {mode === "signup" && "Sign up with your university email to unlock active practice tools, practice tests, and tutor chat."}
-              {mode === "forgot" && "Enter your student email and we will send you a password recovery link."}
+              {mode === "signup" && "Sign up with any valid email address to unlock active practice tools, practice tests, and tutor chat."}
+              {mode === "forgot" && "Enter your email address and we will send you a password recovery link."}
             </p>
           </div>
 
@@ -209,7 +212,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {/* Email input field */}
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
-                {mode === "signup" ? "Student Email Address" : "Email Address"}
+                Email Address
               </label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
@@ -217,7 +220,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g., student@stu.ui.edu.ng"
+                  placeholder="e.g., student@domain.com"
                   className="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-700/60 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
                   required
                 />
@@ -226,15 +229,15 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               {/* Email validation sub-text */}
               {email && mode === "signup" && (
                 <div className="mt-1.5 flex items-center gap-1.5 text-[10px]">
-                  {isUniEmail ? (
+                  {isEmailValid ? (
                     <span className="text-emerald-400 flex items-center gap-1">
-                      <GraduationCap className="w-3.5 h-3.5" />
-                      Valid university email address detected.
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Valid email address format.
                     </span>
                   ) : (
                     <span className="text-amber-400 flex items-center gap-1">
                       <Info className="w-3.5 h-3.5" />
-                      Requires a university email (.edu / .edu.ng).
+                      Please enter a valid format (e.g., example@domain.com).
                     </span>
                   )}
                 </div>
@@ -273,23 +276,6 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                     required
                   />
                 </div>
-              </div>
-            )}
-
-            {/* Force university email checkbox (only during SignUp) */}
-            {mode === "signup" && (
-              <div className="flex items-start gap-2.5 bg-slate-900/40 border border-slate-800 p-3 rounded-xl">
-                <input
-                  type="checkbox"
-                  id="enforceUni"
-                  checked={enforceUniEmail}
-                  onChange={(e) => setEnforceUniEmail(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500"
-                />
-                <label htmlFor="enforceUni" className="text-[11px] text-slate-400 leading-snug cursor-pointer select-none">
-                  <span className="font-semibold text-slate-300 block mb-0.5">Enforce Student Domain Verification</span>
-                  Restricts account signup strictly to university domains (ends in .edu or .edu.ng). Uncheck if testing as a guest.
-                </label>
               </div>
             )}
 

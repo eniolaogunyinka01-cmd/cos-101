@@ -15,14 +15,13 @@ export interface AuthResponse {
 }
 
 /**
- * Validate if an email belongs to a university/academic domain.
- * Supports .edu, .edu.ng (University of Ibadan/Nigerian universities), or general college domains.
+ * Validate if an email matches a general format (example@domain.com).
+ * This standard regex accepts any valid email domain (e.g., @gmail.com, @yahoo.com, personal domains).
  */
-export function isUniversityEmail(email: string): boolean {
+export function isValidEmail(email: string): boolean {
   const cleanEmail = email.trim().toLowerCase();
-  // Regex to check if the domain ends with .edu or .edu.ng
-  const academicPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(edu|edu\.ng)$/;
-  return academicPattern.test(cleanEmail);
+  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailPattern.test(cleanEmail);
 }
 
 /**
@@ -71,18 +70,17 @@ export async function signIn(email: string, password: string): Promise<AuthRespo
 }
 
 /**
- * Create a new user with email and password (restricting to university email if chosen).
+ * Create a new user with email and password, checking that the email matches a general format.
  */
 export async function signUp(
   email: string, 
-  password: string, 
-  forceUniversityEmail = true
+  password: string
 ): Promise<AuthResponse> {
-  // Validate email domain
-  if (forceUniversityEmail && !isUniversityEmail(email)) {
+  // Validate general email format
+  if (!isValidEmail(email)) {
     return {
       user: null,
-      error: "Access Restricted: You must register with a valid university email address ending in .edu or .edu.ng (e.g., student@ui.edu.ng)."
+      error: "Invalid email address format. Please enter a valid email address (e.g., student@domain.com)."
     };
   }
 
