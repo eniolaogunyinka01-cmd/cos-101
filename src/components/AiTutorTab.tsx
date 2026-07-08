@@ -9,6 +9,7 @@ import {
   BookOpen, 
   AlertTriangle 
 } from "lucide-react";
+import { triggerCloudSync } from "../syncService";
 
 interface ChatMessage {
   role: "user" | "model";
@@ -34,6 +35,7 @@ export default function AiTutorTab() {
   useEffect(() => {
     try {
       localStorage.setItem("csc101_ai_messages", JSON.stringify(messages));
+      triggerCloudSync();
     } catch (e) {
       console.error(e);
     }

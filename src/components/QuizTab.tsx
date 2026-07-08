@@ -9,6 +9,7 @@ import {
   XCircle, 
   BookOpen 
 } from "lucide-react";
+import { triggerCloudSync } from "../syncService";
 
 export default function QuizTab() {
   const [examMode, setExamMode] = useState<"full" | "sprint" | null>(() => {
@@ -82,6 +83,8 @@ export default function QuizTab() {
       localStorage.setItem("csc101_quiz_correctAnswersCount", correctAnswersCount.toString());
       localStorage.setItem("csc101_quiz_quizFinished", quizFinished.toString());
       localStorage.setItem("csc101_quiz_userAnswersHistory", JSON.stringify(userAnswersHistory));
+      
+      triggerCloudSync();
     } catch (e) {
       console.error(e);
     }

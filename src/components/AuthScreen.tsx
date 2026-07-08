@@ -318,11 +318,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             </div>
 
             {/* Privacy & Security Footnote */}
-            <div className="flex items-start gap-2.5 bg-slate-950/40 border border-slate-850 p-3.5 rounded-2xl mt-4">
+            <div className="flex items-start gap-2.5 bg-slate-950/40 border border-slate-800 p-3.5 rounded-2xl mt-4">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <div className="text-[10px] text-slate-400 leading-normal">
-                <span className="font-semibold text-slate-300 block mb-0.5">Local Client-Side Storage</span>
-                Your credentials and course progress are securely encrypted and saved inside your browser's private local workspace.
+                <span className="font-semibold text-slate-300 block mb-0.5">Global Supabase Cloud Sync</span>
+                Your credentials, study progress, quiz scores, and tutor companion logs are synchronized globally via the cloud.
               </div>
             </div>
           </form>

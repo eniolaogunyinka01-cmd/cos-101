@@ -18,9 +18,15 @@ import {
   Sun,
   Moon,
   Loader2,
-  LogOut
+  LogOut,
+  Cloud,
+  CloudOff,
+  CheckCircle,
+  AlertTriangle
 } from "lucide-react";
 import { subscribeToAuthChanges, LocalUser, signOut } from "./authService";
+import { isSupabaseConfigured } from "./supabase";
+import { fetchStateFromSupabase, triggerCloudSync, subscribeToSyncStatus, SyncStatus } from "./syncService";
 import AuthScreen from "./components/AuthScreen";
 
 type TabType = "handbook" | "tools" | "quiz" | "tutor";
@@ -28,22 +34,10 @@ type TabType = "handbook" | "tools" | "quiz" | "tutor";
 export default function App() {
   const [currentUser, setCurrentUser] = useState<LocalUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = subscribeToAuthChanges((user) => {
-      setCurrentUser(user);
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (e) {
-      console.error("Error signing out:", e);
-    }
-  };
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    status: isSupabaseConfigured() ? "synced" : "unconfigured",
+    message: isSupabaseConfigured() ? "Progress synced to cloud" : "Supabase not configured"
+  });
 
   const [activeTab, setActiveTab ] = useState<TabType>(() => {
     try {
@@ -80,8 +74,58 @@ export default function App() {
   });
 
   useEffect(() => {
+    const unsubSync = subscribeToSyncStatus((status) => {
+      setSyncStatus(status);
+    });
+    return () => unsubSync();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthChanges(async (user) => {
+      if (user) {
+        setCurrentUser(user);
+        if (isSupabaseConfigured()) {
+          // Pull cloud state and merge into local storage first
+          await fetchStateFromSupabase(user.id);
+          
+          // Read updated state values from localStorage
+          try {
+            const savedTab = localStorage.getItem("csc101_activeTab");
+            if (savedTab === "handbook" || savedTab === "tools" || savedTab === "quiz" || savedTab === "tutor") {
+              setActiveTab(savedTab);
+            }
+            const savedChapters = localStorage.getItem("csc101_readChapters");
+            if (savedChapters) {
+              setReadChapters(JSON.parse(savedChapters));
+            }
+            const savedDark = localStorage.getItem("csc101_darkMode");
+            if (savedDark !== null) {
+              setDarkMode(savedDark === "true");
+            }
+          } catch (e) {
+            console.error("Error loading synced cloud state into React state:", e);
+          }
+        }
+      } else {
+        setCurrentUser(null);
+      }
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (e) {
+      console.error("Error signing out:", e);
+    }
+  };
+
+  useEffect(() => {
     try {
       localStorage.setItem("csc101_activeTab", activeTab);
+      triggerCloudSync();
     } catch (e) {
       console.error(e);
     }
@@ -90,6 +134,7 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem("csc101_readChapters", JSON.stringify(readChapters));
+      triggerCloudSync();
     } catch (e) {
       console.error(e);
     }
@@ -98,6 +143,7 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem("csc101_darkMode", String(darkMode));
+      triggerCloudSync();
     } catch (e) {
       console.error(e);
     }
@@ -193,8 +239,38 @@ export default function App() {
                 <UserCircle2 className="w-4.5 h-4.5 text-indigo-300 shrink-0" />
               </div>
               <div className="min-w-0 flex-1">
-                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider block leading-none">
-                  Student Profile
+                <span className="text-[9px] font-bold uppercase text-slate-400 tracking-wider block leading-none flex items-center gap-1.5 flex-wrap">
+                  <span>Student Profile</span>
+                  {syncStatus.status === "synced" && (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-emerald-400 lowercase tracking-normal">
+                      <Cloud className="w-2 h-2" />
+                      cloud synced
+                    </span>
+                  )}
+                  {syncStatus.status === "syncing" && (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-indigo-400 lowercase tracking-normal animate-pulse">
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                      syncing...
+                    </span>
+                  )}
+                  {syncStatus.status === "offline" && (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-amber-400 lowercase tracking-normal" title={syncStatus.message}>
+                      <CloudOff className="w-2 h-2" />
+                      saved locally (offline)
+                    </span>
+                  )}
+                  {syncStatus.status === "error" && (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-rose-400 lowercase tracking-normal" title={syncStatus.message}>
+                      <AlertTriangle className="w-2 h-2" />
+                      sync error
+                    </span>
+                  )}
+                  {syncStatus.status === "unconfigured" && (
+                    <span className="inline-flex items-center gap-0.5 text-[8px] font-bold text-slate-400 lowercase tracking-normal" title="Declare VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to back up globally.">
+                      <CloudOff className="w-2 h-2" />
+                      guest mode (local)
+                    </span>
+                  )}
                 </span>
                 <span className="text-[11px] text-white font-medium truncate block mt-1">
                   {currentUser?.email}

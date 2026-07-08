@@ -1,9 +1,13 @@
-// Local Client-Side Authentication Service using browser localStorage
+import { getSupabase, isSupabaseConfigured } from "./supabase";
+
+// Define strict typing for Auth User
 export interface LocalUser {
+  id: string;
   email: string;
   displayName?: string;
 }
 
+// Define strict typing for Auth Response
 export interface AuthResponse {
   user: LocalUser | null;
   error: string | null;
@@ -18,52 +22,103 @@ export function isValidEmail(email: string): boolean {
   return emailPattern.test(cleanEmail);
 }
 
-/**
- * Retrieve the currently logged-in user from localStorage.
- */
-export function getCurrentUser(): LocalUser | null {
+// Global active session state
+let currentSessionUser: LocalUser | null = null;
+let authChangeSubscribers: ((user: LocalUser | null) => void)[] = [];
+
+// Track if subscription has been initialized
+let supabaseSubscriptionInitialized = false;
+
+function notifySubscribers() {
+  authChangeSubscribers.forEach((cb) => cb(currentSessionUser));
+}
+
+function initSupabaseAuthSubscription() {
+  if (supabaseSubscriptionInitialized) return;
+  if (!isSupabaseConfigured()) return;
+
   try {
-    const userStr = localStorage.getItem("csc101_currentUser");
-    return userStr ? JSON.parse(userStr) : null;
-  } catch (e) {
-    console.error("Error reading current user from localStorage:", e);
-    return null;
+    const supabase = getSupabase();
+    
+    // Get initial user session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user;
+      if (user) {
+        currentSessionUser = {
+          id: user.id,
+          email: user.email || "",
+          displayName: user.user_metadata?.displayName || user.email?.split("@")[0] || "Student",
+        };
+      } else {
+        currentSessionUser = null;
+      }
+      notifySubscribers();
+    });
+
+    // Listen for auth state changes
+    supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Supabase Auth Event:", event);
+      const user = session?.user;
+      if (user) {
+        currentSessionUser = {
+          id: user.id,
+          email: user.email || "",
+          displayName:
+            user.user_metadata?.displayName ||
+            user.email?.split("@")[0] ||
+            "Student",
+        };
+      } else {
+        currentSessionUser = null;
+      }
+      notifySubscribers();
+    });
+
+    supabaseSubscriptionInitialized = true;
+  } catch (err) {
+    console.error("Error setting up Supabase auth listener:", err);
   }
 }
 
-// Active subscription list for auth state updates
-let authChangeSubscribers: ((user: LocalUser | null) => void)[] = [];
-
 /**
- * Subscribe to authentication state changes. 
- * Emulates the Firebase onAuthStateChanged observer pattern.
+ * Subscribe to authentication state changes.
+ * Emulates the auth observer pattern.
  */
 export function subscribeToAuthChanges(callback: (user: LocalUser | null) => void): () => void {
   authChangeSubscribers.push(callback);
-  // Trigger callback immediately with the current state on subscription
-  callback(getCurrentUser());
-  
-  // Return an unsubscribe function
+
+  if (isSupabaseConfigured()) {
+    initSupabaseAuthSubscription();
+    callback(currentSessionUser);
+  } else {
+    // Local fallback when Supabase is not configured yet
+    const saved = localStorage.getItem("csc101_currentUser");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        currentSessionUser = {
+          id: parsed.id || "local-fallback-id",
+          email: parsed.email || "",
+          displayName: parsed.displayName || parsed.email.split("@")[0],
+        };
+      } catch (e) {
+        currentSessionUser = null;
+      }
+    } else {
+      currentSessionUser = null;
+    }
+    callback(currentSessionUser);
+  }
+
   return () => {
-    authChangeSubscribers = authChangeSubscribers.filter(cb => cb !== callback);
+    authChangeSubscribers = authChangeSubscribers.filter((cb) => cb !== callback);
   };
 }
 
 /**
- * Notify all subscribers of authentication state changes.
- */
-function notifySubscribers() {
-  const currentUser = getCurrentUser();
-  authChangeSubscribers.forEach(cb => cb(currentUser));
-}
-
-/**
- * Sign up a new user using localStorage.
+ * Sign up a new user using Supabase, or falls back to localStorage.
  */
 export async function signUp(email: string, password: string): Promise<AuthResponse> {
-  // Simulate network latency for a polished UX feel
-  await new Promise(resolve => setTimeout(resolve, 800));
-
   const cleanEmail = email.trim().toLowerCase();
 
   if (!isValidEmail(cleanEmail)) {
@@ -74,82 +129,160 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
     return { user: null, error: "Password must be at least 6 characters long." };
   }
 
-  try {
-    const usersStr = localStorage.getItem("csc101_users") || "[]";
-    const users = JSON.parse(usersStr);
+  if (!isSupabaseConfigured()) {
+    // Local Fallback sign up logic
+    try {
+      const usersStr = localStorage.getItem("csc101_users") || "[]";
+      const users = JSON.parse(usersStr);
 
-    // Check if user already exists
-    const userExists = users.some((u: any) => u.email === cleanEmail);
-    if (userExists) {
-      return { user: null, error: "An account with this email address already exists." };
+      const userExists = users.some((u: any) => u.email === cleanEmail);
+      if (userExists) {
+        return { user: null, error: "An account with this email address already exists." };
+      }
+
+      const displayName = cleanEmail.split("@")[0];
+      const id = "local-" + Math.random().toString(36).substr(2, 9);
+      const newUser = { id, email: cleanEmail, password, displayName };
+
+      users.push(newUser);
+      localStorage.setItem("csc101_users", JSON.stringify(users));
+
+      const localUser: LocalUser = { id, email: cleanEmail, displayName };
+      localStorage.setItem("csc101_currentUser", JSON.stringify(localUser));
+      currentSessionUser = localUser;
+      notifySubscribers();
+
+      return { user: localUser, error: null };
+    } catch (e) {
+      return { user: null, error: "A local storage error occurred during registration." };
+    }
+  }
+
+  try {
+    const supabase = getSupabase();
+    const displayName = cleanEmail.split("@")[0];
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          displayName: displayName,
+        },
+      },
+    });
+
+    if (error) {
+      return { user: null, error: error.message };
     }
 
-    // Auto-generate a friendly display name from the email
-    const displayName = email.split("@")[0];
-    const newUser = { email: cleanEmail, password, displayName };
-    
-    // Save new user
-    users.push(newUser);
-    localStorage.setItem("csc101_users", JSON.stringify(users));
+    if (!data.user) {
+      return { user: null, error: "Account created but no user data returned." };
+    }
 
-    // Sign the user in automatically upon registration
-    localStorage.setItem("csc101_currentUser", JSON.stringify({ email: cleanEmail, displayName }));
+    const localUser: LocalUser = {
+      id: data.user.id,
+      email: data.user.email || cleanEmail,
+      displayName: data.user.user_metadata?.displayName || displayName,
+    };
+
+    currentSessionUser = localUser;
     notifySubscribers();
-
-    return { user: { email: cleanEmail, displayName }, error: null };
-  } catch (e) {
-    console.error("Error during signUp:", e);
-    return { user: null, error: "A local storage error occurred while saving your account." };
+    return { user: localUser, error: null };
+  } catch (err: any) {
+    return { user: null, error: err.message || "An error occurred during registration." };
   }
 }
 
 /**
- * Sign in an existing user using credentials from localStorage.
+ * Sign in an existing user using Supabase, or falls back to localStorage.
  */
 export async function signIn(email: string, password: string): Promise<AuthResponse> {
-  // Simulate network latency for a polished UX feel
-  await new Promise(resolve => setTimeout(resolve, 800));
-
   const cleanEmail = email.trim().toLowerCase();
 
   if (!cleanEmail || !password) {
     return { user: null, error: "Please fill in all fields." };
   }
 
-  try {
-    const usersStr = localStorage.getItem("csc101_users") || "[]";
-    const users = JSON.parse(usersStr);
+  if (!isSupabaseConfigured()) {
+    // Local Fallback sign in logic
+    try {
+      const usersStr = localStorage.getItem("csc101_users") || "[]";
+      const users = JSON.parse(usersStr);
 
-    const user = users.find((u: any) => u.email === cleanEmail && u.password === password);
-    if (!user) {
-      return { user: null, error: "Incorrect email or password. Please try again." };
+      const user = users.find((u: any) => u.email === cleanEmail && u.password === password);
+      if (!user) {
+        return { user: null, error: "Incorrect email or password. Please try again." };
+      }
+
+      const loggedInUser: LocalUser = {
+        id: user.id || "local-fallback-id",
+        email: user.email,
+        displayName: user.displayName || user.email.split("@")[0],
+      };
+
+      localStorage.setItem("csc101_currentUser", JSON.stringify(loggedInUser));
+      currentSessionUser = loggedInUser;
+      notifySubscribers();
+
+      return { user: loggedInUser, error: null };
+    } catch (e) {
+      return { user: null, error: "A local storage error occurred during sign-in." };
+    }
+  }
+
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (error) {
+      return { user: null, error: error.message };
     }
 
-    const loggedInUser: LocalUser = {
-      email: user.email,
-      displayName: user.displayName || user.email.split("@")[0]
+    if (!data.user) {
+      return { user: null, error: "Sign in succeeded but no user data returned." };
+    }
+
+    const localUser: LocalUser = {
+      id: data.user.id,
+      email: data.user.email || cleanEmail,
+      displayName: data.user.user_metadata?.displayName || cleanEmail.split("@")[0],
     };
 
-    localStorage.setItem("csc101_currentUser", JSON.stringify(loggedInUser));
+    currentSessionUser = localUser;
     notifySubscribers();
-
-    return { user: loggedInUser, error: null };
-  } catch (e) {
-    console.error("Error during signIn:", e);
-    return { user: null, error: "A local storage error occurred during sign-in." };
+    return { user: localUser, error: null };
+  } catch (err: any) {
+    return { user: null, error: err.message || "An error occurred during sign-in." };
   }
 }
 
 /**
- * Sign out the currently logged in user.
+ * Sign out the current user session.
  */
 export async function signOut(): Promise<{ error: string | null }> {
-  try {
+  if (!isSupabaseConfigured()) {
     localStorage.removeItem("csc101_currentUser");
+    currentSessionUser = null;
     notifySubscribers();
     return { error: null };
-  } catch (e) {
-    console.error("Error during signOut:", e);
-    return { error: "An error occurred while signing out." };
+  }
+
+  try {
+    const supabase = getSupabase();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      return { error: error.message };
+    }
+    currentSessionUser = null;
+    notifySubscribers();
+    return { error: null };
+  } catch (err: any) {
+    localStorage.removeItem("csc101_currentUser");
+    currentSessionUser = null;
+    notifySubscribers();
+    return { error: err.message || "An error occurred during sign out." };
   }
 }
