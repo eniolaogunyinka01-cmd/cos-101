@@ -4,6 +4,107 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Scribe Analysis Engine v2.4</title>
+    <script>
+      // 1. Intercept WebSocket constructor to completely neutralize Vite HMR socket errors in sandbox
+      const OriginalWebSocket = window.WebSocket;
+      if (OriginalWebSocket) {
+        window.WebSocket = function(url, protocols) {
+          const isViteSocket = typeof url === 'string' && (
+            url.includes('vite') || 
+            url.includes('hmr') || 
+            url.includes('localhost') || 
+            url.includes('127.0.0.1') ||
+            protocols === 'vite-hmr'
+          );
+
+          if (isViteSocket) {
+            console.log('Intercepted and neutralized Vite HMR WebSocket connection to prevent browser console pollution.');
+            
+            const eventListeners = new Map();
+            const mockSocket = {
+              url: url,
+              protocol: protocols || '',
+              readyState: 0, // CONNECTING
+              bufferedAmount: 0,
+              extensions: '',
+              binaryType: 'blob',
+              
+              addEventListener(type, listener) {
+                if (!eventListeners.has(type)) {
+                  eventListeners.set(type, []);
+                }
+                eventListeners.get(type).push(listener);
+              },
+              
+              removeEventListener(type, listener) {
+                if (eventListeners.has(type)) {
+                  const listeners = eventListeners.get(type);
+                  const index = listeners.indexOf(listener);
+                  if (index !== -1) {
+                    listeners.splice(index, 1);
+                  }
+                }
+              },
+              
+              send(data) {
+                // No-op
+              },
+              
+              close() {
+                this.readyState = 3; // CLOSED
+                const closeListeners = eventListeners.get('close') || [];
+                closeListeners.forEach(l => {
+                  try { l({ type: 'close', wasClean: true, code: 1000, reason: 'Neutered' }); } catch(e){}
+                });
+              }
+            };
+            
+            // Simulate socket closing cleanly to make Vite client shut down silently
+            setTimeout(() => {
+              mockSocket.readyState = 3; // CLOSED
+              const closeListeners = eventListeners.get('close') || [];
+              closeListeners.forEach(l => {
+                try { l({ type: 'close', wasClean: true, code: 1000, reason: 'Clean' }); } catch(e){}
+              });
+            }, 100);
+            
+            return mockSocket;
+          }
+          
+          return new OriginalWebSocket(url, protocols);
+        };
+        window.WebSocket.prototype = OriginalWebSocket.prototype;
+      }
+
+      // 2. Extra layer: Suppress any remaining benign Vite/HMR unhandled rejections or errors
+      window.addEventListener('unhandledrejection', function(event) {
+        const reason = event.reason;
+        const msg = String(reason?.message || reason || '');
+        if (
+          msg.includes('WebSocket') || 
+          msg.includes('websocket') || 
+          msg.includes('vite') || 
+          msg.includes('HMR')
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          console.warn('Suppressed benign HMR rejection:', msg);
+        }
+      });
+      window.addEventListener('error', function(event) {
+        const msg = String(event.message || event.error || event || '');
+        if (
+          msg.includes('WebSocket') || 
+          msg.includes('websocket') || 
+          msg.includes('vite') || 
+          msg.includes('HMR')
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          console.warn('Suppressed benign HMR error:', msg);
+        }
+      }, true);
+    </script>
   </head>
   <body>
     <div id="root"></div>

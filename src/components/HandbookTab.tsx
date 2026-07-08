@@ -1,83 +1,151 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { CHAPTERS } from "../data";
 import { Chapter } from "../types";
-import { ArrowRight, ChevronRight, Layers, Cpu, Shield, HelpCircle, Network, HardDrive, Binary } from "lucide-react";
+import { ArrowRight, ChevronRight, Layers, Cpu, Shield, HelpCircle, Network, HardDrive, Binary, CheckSquare, Square, CheckCircle2, BookOpen } from "lucide-react";
 
-export default function HandbookTab() {
-  const [selectedChapterId, setSelectedChapterId] = useState<string>(CHAPTERS[0].id);
+interface HandbookTabProps {
+  readChapters?: string[];
+  onToggleRead?: (chapterId: string) => void;
+}
+
+export default function HandbookTab({
+  readChapters = [],
+  onToggleRead = () => {}
+}: HandbookTabProps) {
+  const [selectedChapterId, setSelectedChapterId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem("csc101_selectedChapterId");
+      if (saved && CHAPTERS.some((ch) => ch.id === saved)) {
+        return saved;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return CHAPTERS[0].id;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("csc101_selectedChapterId", selectedChapterId);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [selectedChapterId]);
 
   const selectedChapter = CHAPTERS.find((ch) => ch.id === selectedChapterId) || CHAPTERS[0];
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-white">
+    <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-slate-50/50">
       {/* Sidebar - Chapter Selector */}
-      <aside className="w-full md:w-80 border-b md:border-b-0 md:border-r border-black flex flex-col bg-gray-50 overflow-y-auto">
-        <div className="p-6 border-b border-black bg-white">
-          <h3 className="text-xs font-black uppercase tracking-widest text-black">
-            HANDBOOK SECTIONS
+      <aside className="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-slate-50 shrink-0 md:overflow-y-auto">
+        <div className="p-5 border-b border-slate-200/80 bg-white hidden md:block">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            Handbook Syllabus Modules
           </h3>
-          <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">
-            CSC 101 Curriculum Topics
+          <p className="text-xs text-indigo-600 font-semibold mt-1 font-display">
+            CSC 101 Lecture Chapters
           </p>
         </div>
-        <nav className="flex-1 py-4 divide-y divide-gray-100">
-          {CHAPTERS.map((ch, idx) => (
-            <button
-              key={ch.id}
-              onClick={() => setSelectedChapterId(ch.id)}
-              className={`w-full text-left px-6 py-4 flex items-start gap-4 transition-all uppercase cursor-pointer ${
-                selectedChapterId === ch.id
-                  ? "bg-black text-white font-black"
-                  : "text-black hover:bg-gray-100"
-              }`}
-            >
-              <span className="text-[10px] font-black opacity-40">0{idx + 1}</span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-bold tracking-tight truncate">
-                  {ch.shortTitle}
+        <nav className="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible p-3 md:p-3 gap-2.5 md:space-y-1.5 scrollbar-none">
+          {CHAPTERS.map((ch, idx) => {
+            const isChRead = readChapters.includes(ch.id);
+            const isSelected = selectedChapterId === ch.id;
+            return (
+              <button
+                key={ch.id}
+                onClick={() => setSelectedChapterId(ch.id)}
+                className={`text-left px-4 py-2.5 md:px-4 md:py-3.5 flex items-center md:items-start gap-3 transition-all cursor-pointer shrink-0 rounded-xl border md:border ${
+                  isSelected
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/10 font-medium scale-[1.01]"
+                    : "text-slate-700 bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`text-[10px] font-mono font-bold hidden md:inline-block ${isSelected ? "text-indigo-200" : "text-slate-400"}`}>0{idx + 1}</span>
+                  {isChRead && (
+                    <CheckCircle2 className={`w-4 h-4 shrink-0 md:mt-0.5 ${isSelected ? "text-emerald-300" : "text-emerald-500"}`} />
+                  )}
                 </div>
-                <div
-                  className={`text-[9px] font-bold truncate mt-0.5 ${
-                    selectedChapterId === ch.id ? "text-gray-300" : "text-gray-500"
-                  }`}
-                >
-                  {ch.title.split(". ")[1]}
+                <div className="min-w-0 md:flex-1">
+                  <div className="text-[11px] md:text-xs font-bold tracking-tight whitespace-nowrap md:whitespace-normal flex items-center gap-1.5">
+                    <span>{ch.shortTitle}</span>
+                    {isChRead && (
+                      <span className="text-[9px] bg-emerald-500 text-white rounded-full px-1.5 py-0.2 md:hidden shrink-0 font-bold">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    className={`text-[10px] font-medium truncate mt-0.5 hidden md:block leading-tight ${
+                      isSelected ? "text-indigo-100" : "text-slate-400"
+                    }`}
+                  >
+                    {ch.title.split(". ")[1]}
+                  </div>
                 </div>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 mt-0.5" />
-            </button>
-          ))}
+                <ChevronRight className={`w-4 h-4 shrink-0 hidden md:block opacity-60 ${isSelected ? "text-white" : "text-slate-400"}`} />
+              </button>
+            );
+          })}
         </nav>
       </aside>
 
       {/* Main Chapter Content Viewer */}
-      <section className="flex-1 p-6 md:p-10 overflow-y-auto flex flex-col">
-        {/* Topic Header */}
-        <div className="border-b-4 border-black pb-6 mb-8">
-          <span className="text-[9px] font-black uppercase bg-black text-white px-2 py-1 tracking-wider">
-            Active Study Module
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-black uppercase text-black mt-3 tracking-tighter">
-            {selectedChapter.title}
-          </h2>
-          <p className="text-sm font-medium text-gray-600 mt-2">
-            {selectedChapter.subtitle}
-          </p>
+      <section className="flex-1 p-5 md:p-8 overflow-y-auto flex flex-col bg-white">
+        {/* Topic Header Card */}
+        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200/60 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6 shadow-sm">
+          <div className="flex-1 space-y-2">
+            <span className="text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-full tracking-wide inline-block">
+              Active Lecture Slide Companion
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight font-display">
+              {selectedChapter.title}
+            </h2>
+            <p className="text-sm font-medium text-slate-500">
+              {selectedChapter.subtitle}
+            </p>
+          </div>
+
+          <div className="shrink-0">
+            <button
+              onClick={() => onToggleRead(selectedChapter.id)}
+              className={`w-full md:w-auto px-5 py-3 rounded-xl text-xs font-semibold tracking-wide flex items-center justify-center gap-2 border transition-all cursor-pointer select-none shadow-sm hover:-translate-y-0.5 active:translate-y-0 ${
+                readChapters.includes(selectedChapter.id)
+                  ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600"
+                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              {readChapters.includes(selectedChapter.id) ? (
+                <>
+                  <CheckSquare className="w-4.5 h-4.5 text-white shrink-0" />
+                  <span>Module Completed</span>
+                </>
+              ) : (
+                <>
+                  <Square className="w-4.5 h-4.5 text-slate-400 shrink-0" />
+                  <span>Mark as Completed</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Sections */}
-        <div className="space-y-10 flex-1">
+        <div className="space-y-12 flex-1">
           {selectedChapter.sections.map((sect, sIdx) => (
-            <div key={sIdx} className="border-b border-gray-100 pb-8 last:border-b-0 space-y-4">
-              <h3 className="text-lg font-black uppercase text-black italic tracking-tight">
-                {sect.title}
-              </h3>
+            <div key={sIdx} className="border-b border-slate-100 pb-10 last:border-b-0 space-y-5">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight font-display">
+                  {sect.title}
+                </h3>
+              </div>
               
-              <ul className="space-y-3">
+              <ul className="grid grid-cols-1 gap-3.5 pl-1">
                 {sect.content.map((bullet, bIdx) => (
-                  <li key={bIdx} className="flex items-start gap-3">
-                    <span className="w-1.5 h-1.5 bg-black rounded-full mt-2 shrink-0"></span>
-                    <p className="text-sm leading-relaxed text-gray-800 font-medium">
+                  <li key={bIdx} className="flex items-start gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-100/85 hover:bg-slate-50 hover:shadow-sm transition-all duration-300">
+                    <span className="w-2 h-2 bg-indigo-400 rounded-full mt-1.5 shrink-0"></span>
+                    <p className="text-sm leading-relaxed text-slate-600 font-normal">
                       {bullet}
                     </p>
                   </li>
@@ -92,17 +160,18 @@ export default function HandbookTab() {
 
               {/* Key Terms */}
               {sect.keyTerms && sect.keyTerms.length > 0 && (
-                <div className="mt-6 bg-gray-50 p-4 border border-black space-y-3">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-black border-b border-gray-200 pb-1.5">
-                    Core Jargon &amp; Key Terms
+                <div className="mt-8 bg-indigo-50/30 rounded-2xl p-5 border border-indigo-100/60 space-y-4 shadow-inner">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-indigo-800 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-indigo-500" />
+                    Core Jargon &amp; Lecture Key Terms
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sect.keyTerms.map((term, tIdx) => (
-                      <div key={tIdx} className="space-y-1">
-                        <span className="text-xs font-black uppercase text-black tracking-tight underline decorative-black">
+                      <div key={tIdx} className="bg-white p-3.5 rounded-xl border border-indigo-100/40 shadow-sm space-y-1.5">
+                        <span className="text-xs font-bold text-slate-900 tracking-tight">
                           {term.term}
                         </span>
-                        <p className="text-xs text-gray-600 leading-tight font-medium">
+                        <p className="text-xs text-slate-500 leading-normal font-normal">
                           {term.definition}
                         </p>
                       </div>
@@ -123,20 +192,20 @@ function NetworkTopologyDiagram() {
   const [activeType, setActiveType] = useState<"bus" | "star" | "ring" | "mesh">("star");
 
   return (
-    <div className="mt-6 bg-gray-50 border border-black p-6 space-y-4">
-      <div className="flex justify-between items-center border-b border-gray-200 pb-3 flex-wrap gap-2">
-        <span className="text-[11px] font-black uppercase tracking-widest text-black">
-          Interactive Topology Visualifier
+    <div className="mt-8 bg-slate-50/70 rounded-2xl border border-slate-200/80 p-5 md:p-6 space-y-5 shadow-sm">
+      <div className="flex justify-between items-center border-b border-slate-200 pb-3.5 flex-wrap gap-3">
+        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          Interactive Topology Visualizer
         </span>
         <div className="flex gap-2 flex-wrap">
           {(["bus", "star", "ring", "mesh"] as const).map((type) => (
             <button
               key={type}
               onClick={() => setActiveType(type)}
-              className={`px-3 py-1 text-[9px] uppercase font-bold tracking-tight rounded-none cursor-pointer border ${
+              className={`px-3 py-1.5 rounded-full text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer border ${
                 activeType === type
-                  ? "bg-black text-white border-black"
-                  : "bg-white text-black border-gray-300 hover:border-black"
+                  ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-800 hover:-translate-y-0.5"
               }`}
             >
               {type}
@@ -147,16 +216,16 @@ function NetworkTopologyDiagram() {
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
         {/* Render interactive SVG graph based on selection */}
-        <div className="md:col-span-6 bg-white p-4 border border-black flex justify-center items-center h-48 select-none">
+        <div className="md:col-span-6 bg-white p-4 rounded-xl border border-slate-100 flex justify-center items-center h-52 select-none shadow-inner">
           {activeType === "bus" && (
             <svg viewBox="0 0 300 120" className="w-full h-full max-h-40">
-              <line x1="20" y1="60" x2="280" y2="60" stroke="#000" strokeWidth="4" />
+              <line x1="20" y1="60" x2="280" y2="60" stroke="#4f46e5" strokeWidth="4" strokeLinecap="round" />
               {/* Nodes */}
               {[40, 100, 160, 220, 260].map((x, i) => (
-                <g key={i}>
-                  <line x1={x} y1="60" x2={x} y2={i % 2 === 0 ? "30" : "90"} stroke="#000" strokeWidth="2" strokeDasharray="3" />
-                  <circle cx={x} cy={i % 2 === 0 ? "25" : "95"} r="10" fill="#fff" stroke="#000" strokeWidth="2" />
-                  <text x={x} y={i % 2 === 0 ? "28" : "98"} fontSize="8" fontWeight="bold" textAnchor="middle" fill="#000">N{i + 1}</text>
+                <g key={i} className="group">
+                  <line x1={x} y1="60" x2={x} y2={i % 2 === 0 ? "35" : "85"} stroke="#94a3b8" strokeWidth="2" strokeDasharray="3" />
+                  <circle cx={x} cy={i % 2 === 0 ? "25" : "95"} r="12" fill="#ffffff" stroke="#4f46e5" strokeWidth="2.5" className="hover:scale-110 transition-transform cursor-pointer" />
+                  <text x={x} y={i % 2 === 0 ? "28" : "98"} fontSize="8" fontWeight="bold" textAnchor="middle" fill="#1e1b4b">N{i + 1}</text>
                 </g>
               ))}
             </svg>
@@ -165,20 +234,20 @@ function NetworkTopologyDiagram() {
           {activeType === "star" && (
             <svg viewBox="0 0 200 180" className="w-full h-full max-h-40">
               {/* Central Hub */}
-              <circle cx="100" cy="90" r="16" fill="#000" />
-              <text x="100" y="93" fontSize="8" fontWeight="black" fill="#fff" textAnchor="middle">HUB</text>
+              <circle cx="100" cy="90" r="18" fill="#4f46e5" className="animate-pulse-slow" />
+              <text x="100" y="93" fontSize="8" fontWeight="black" fill="#ffffff" textAnchor="middle">HUB</text>
               {/* Peripheral Nodes connected strictly to Hub */}
               {[
-                { x: 30, y: 40 },
-                { x: 170, y: 40 },
-                { x: 30, y: 140 },
-                { x: 170, y: 140 },
-                { x: 100, y: 160 },
+                { x: 35, y: 45 },
+                { x: 165, y: 45 },
+                { x: 35, y: 135 },
+                { x: 165, y: 135 },
+                { x: 100, y: 155 },
               ].map((pos, i) => (
                 <g key={i}>
-                  <line x1="100" y1="90" x2={pos.x} y2={pos.y} stroke="#000" strokeWidth="2" />
-                  <circle cx={pos.x} cy={pos.y} r="10" fill="#fff" stroke="#000" strokeWidth="2" />
-                  <text x={pos.x} y={pos.y + 3} fontSize="8" fontWeight="bold" textAnchor="middle" fill="#000">N{i + 1}</text>
+                  <line x1="100" y1="90" x2={pos.x} y2={pos.y} stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx={pos.x} cy={pos.y} r="12" fill="#ffffff" stroke="#4f46e5" strokeWidth="2.5" />
+                  <text x={pos.x} y={pos.y + 3} fontSize="8" fontWeight="bold" textAnchor="middle" fill="#1e1b4b">N{i + 1}</text>
                 </g>
               ))}
             </svg>
@@ -187,7 +256,8 @@ function NetworkTopologyDiagram() {
           {activeType === "ring" && (
             <svg viewBox="0 0 200 180" className="w-full h-full max-h-40">
               {/* Outer Ring path */}
-              <circle cx="100" cy="90" r="50" fill="none" stroke="#000" strokeWidth="2" />
+              <circle cx="100" cy="90" r="50" fill="none" stroke="#e2e8f0" strokeWidth="3" />
+              <circle cx="100" cy="90" r="50" fill="none" stroke="#4f46e5" strokeWidth="2" strokeDasharray="5" />
               {/* Circular Nodes */}
               {[0, 72, 144, 216, 288].map((angle, idx) => {
                 const r = 50;
@@ -195,8 +265,8 @@ function NetworkTopologyDiagram() {
                 const y = 90 + r * Math.sin((angle * Math.PI) / 180);
                 return (
                   <g key={idx}>
-                    <circle cx={x} cy={y} r="10" fill="#fff" stroke="#000" strokeWidth="2" />
-                    <text x={x} y={y + 3} fontSize="8" fontWeight="bold" textAnchor="middle" fill="#000">N{idx + 1}</text>
+                    <circle cx={x} cy={y} r="12" fill="#ffffff" stroke="#4f46e5" strokeWidth="2.5" />
+                    <text x={x} y={y + 3} fontSize="8" fontWeight="bold" textAnchor="middle" fill="#1e1b4b">N{idx + 1}</text>
                   </g>
                 );
               })}
@@ -219,17 +289,16 @@ function NetworkTopologyDiagram() {
                     {/* Render fully redundant cross connect paths */}
                     {nodes.map((n1, idx1) =>
                       nodes.map((n2, idx2) => {
-                        // idx2 > idx1 avoids using the < symbol, ensuring HTML parser safety
                         if (idx2 > idx1) {
-                          return <line key={`${idx1}-${idx2}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#000" strokeWidth="1" strokeDasharray="1 1" />;
+                          return <line key={`${idx1}-${idx2}`} x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} stroke="#818cf8" strokeWidth="1" strokeDasharray="3 2" opacity="0.8" />;
                         }
                         return null;
                       })
                     )}
                     {nodes.map((n, idx) => (
                       <g key={idx}>
-                        <circle cx={n.x} cy={n.y} r="10" fill="#fff" stroke="#000" strokeWidth="2" />
-                        <text x={n.x} y={n.y + 3} fontSize="8" fontWeight="black" textAnchor="middle" fill="#000">N{idx + 1}</text>
+                        <circle cx={n.x} cy={n.y} r="12" fill="#ffffff" stroke="#4f46e5" strokeWidth="2.5" />
+                        <text x={n.x} y={n.y + 3} fontSize="8" fontWeight="black" textAnchor="middle" fill="#1e1b4b">N{idx + 1}</text>
                       </g>
                     ))}
                   </g>
@@ -240,47 +309,47 @@ function NetworkTopologyDiagram() {
         </div>
 
         {/* Explanation text */}
-        <div className="md:col-span-6 space-y-2">
-          <div className="text-[10px] font-black uppercase text-gray-500">Curriculum Details</div>
+        <div className="md:col-span-6 space-y-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Curriculum Details</div>
           {activeType === "bus" && (
-            <>
-              <h5 className="text-xs font-bold uppercase text-black">BUS TOPOLOGY CHARACTERISTICS</h5>
-              <p className="text-xs text-gray-700 leading-relaxed font-medium">
-                • <strong>Efficiency:</strong> Easy and inexpensive to install since all nodes connect to a single central coaxial cable trunk line.
+            <div className="space-y-2">
+              <h5 className="text-sm font-bold text-slate-900 uppercase tracking-tight">BUS TOPOLOGY CHARACTERISTICS</h5>
+              <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                • <strong className="text-slate-800">Efficiency:</strong> Very simple and inexpensive to deploy initially because all computer nodes bridge into a single shared coaxial trunk cable.
                 <br />
-                • <strong>Vulnerability:</strong> High risk of failure. If the central cable trunk breaks anywhere, the entire LAN system immediately collapses.
+                • <strong className="text-slate-800">Vulnerability:</strong> Catastrophic single point of failure. If the central bus trunk suffers a break or disconnect anywhere along the spine, the entire network drops out.
               </p>
-            </>
+            </div>
           )}
           {activeType === "star" && (
-            <>
-              <h5 className="text-xs font-bold uppercase text-black">STAR TOPOLOGY CHARACTERISTICS</h5>
-              <p className="text-xs text-gray-700 leading-relaxed font-medium">
-                • <strong>Layout:</strong> Resembles layout spoke cycles of a bicycle wheel where all nodes cable to a central host (HUB/Switch).
+            <div className="space-y-2">
+              <h5 className="text-sm font-bold text-slate-900 uppercase tracking-tight">STAR TOPOLOGY CHARACTERISTICS</h5>
+              <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                • <strong className="text-slate-800">Layout:</strong> Nodes radiate like wheel spokes, wiring individually into a centralized device such as a Hub or Switch.
                 <br />
-                • <strong>Fault-Tolerance:</strong> If one node cable snaps, only that node fails. However, if the central HUB fails, the whole network collapses.
+                • <strong className="text-slate-800">Fault-Tolerance:</strong> Exceptionally robust. If an individual node cable snaps, only that single node is disabled. The rest of the workspace network continues operating smoothly.
               </p>
-            </>
+            </div>
           )}
           {activeType === "ring" && (
-            <>
-              <h5 className="text-xs font-bold uppercase text-black">RING TOPOLOGY CHARACTERISTICS</h5>
-              <p className="text-xs text-gray-700 leading-relaxed font-medium">
-                • <strong>Message Travel:</strong> A frame travels around a closed loop path stopping at each node. Targets accept data, others pass it on.
+            <div className="space-y-2">
+              <h5 className="text-sm font-bold text-slate-900 uppercase tracking-tight">RING TOPOLOGY CHARACTERISTICS</h5>
+              <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                • <strong className="text-slate-800">Message Travel:</strong> Data frames travel sequentially around a continuous closed circle stop-by-stop. Each node acts as a signal repeater.
                 <br />
-                • <strong>Dual Ring protection:</strong> High-reliability setups run active counter-circulating secondary backup lines to avoid single link failures.
+                • <strong className="text-slate-800">Dual Ring protection:</strong> High-performance configurations use secondary counter-circulating backup rings to bypass breaks without packet loss.
               </p>
-            </>
+            </div>
           )}
           {activeType === "mesh" && (
-            <>
-              <h5 className="text-xs font-bold uppercase text-black">MESH TOPOLOGY CHARACTERISTICS</h5>
-              <p className="text-xs text-gray-700 leading-relaxed font-medium">
-                • <strong>Ultra Fault-Tolerance:</strong> Connects every node to every other node individually for optimal reliability and failover redundancy.
+            <div className="space-y-2">
+              <h5 className="text-sm font-bold text-slate-900 uppercase tracking-tight">MESH TOPOLOGY CHARACTERISTICS</h5>
+              <p className="text-xs text-slate-600 leading-relaxed font-normal">
+                • <strong className="text-slate-800">Ultra Redundancy:</strong> Connects every workstation node to every other node directly. Routes packets instantly through the most optimal path.
                 <br />
-                • <strong>Enterprise Cost:</strong> Highly expensive and labor-intensive to implement. Restricted mostly to WAN backbones and critical financial banking servers.
+                • <strong className="text-slate-800">Enterprise Cost:</strong> Highly complex, labor-intensive, and cable-redundant. Mostly limited to WAN infrastructure and highly critical database setups.
               </p>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -291,60 +360,60 @@ function NetworkTopologyDiagram() {
 // CPU & Bus Diagram widget
 function CpuBusDiagram() {
   return (
-    <div className="mt-6 bg-gray-50 border border-black p-6 space-y-4">
-      <div className="text-[11px] font-black uppercase tracking-widest text-black border-b border-gray-200 pb-2">
-        Von Neumann CPU &amp; Bus Infrastructure Diagram
+    <div className="mt-8 bg-slate-50/70 rounded-2xl border border-slate-200/80 p-5 md:p-6 space-y-5 shadow-sm">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-3">
+        Von Neumann CPU &amp; Bus Architecture Diagram
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
-        <div className="md:col-span-7 bg-white p-4 border border-black select-none">
+        <div className="md:col-span-7 bg-white p-4 rounded-xl border border-slate-100 flex justify-center items-center h-52 select-none shadow-inner">
           <svg viewBox="0 0 320 200" className="w-full h-full max-h-48">
             {/* Input Device */}
-            <rect x="10" y="70" width="60" height="40" fill="#fff" stroke="#000" strokeWidth="2" />
-            <text x="40" y="95" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#000">INPUTS</text>
+            <rect x="10" y="70" width="60" height="40" rx="6" fill="#f8fafc" stroke="#4f46e5" strokeWidth="2" />
+            <text x="40" y="94" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#1e1b4b">INPUTS</text>
 
             {/* Central Processing Unit (CPU) */}
-            <rect x="100" y="15" width="120" height="150" fill="#f9f9f9" stroke="#000" strokeWidth="3" />
-            <text x="160" y="32" fontSize="9" fontWeight="black" textAnchor="middle" fill="#000">CPU</text>
+            <rect x="100" y="15" width="120" height="150" rx="10" fill="#f1f5f9" stroke="#312e81" strokeWidth="2.5" />
+            <text x="160" y="32" fontSize="9" fontWeight="black" textAnchor="middle" fill="#1e1b4b">CPU CHIP</text>
 
             {/* Inside CPU: CU and ALU */}
-            <rect x="110" y="45" width="100" height="40" fill="#fff" stroke="#000" strokeWidth="2" />
-            <text x="160" y="65" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#000">Control Unit</text>
+            <rect x="110" y="45" width="100" height="40" rx="6" fill="#ffffff" stroke="#4f46e5" strokeWidth="1.5" />
+            <text x="160" y="68" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#1e1b4b">Control Unit</text>
 
-            <rect x="110" y="100" width="100" height="40" fill="#fff" stroke="#000" strokeWidth="2" />
-            <text x="160" y="125" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#000">ALU</text>
+            <rect x="110" y="100" width="100" height="40" rx="6" fill="#ffffff" stroke="#10b981" strokeWidth="1.5" />
+            <text x="160" y="123" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#1e1b4b">ALU</text>
 
             {/* Output Device */}
-            <rect x="250" y="70" width="60" height="40" fill="#fff" stroke="#000" strokeWidth="2" />
-            <text x="280" y="95" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#000">OUTPUTS</text>
+            <rect x="250" y="70" width="60" height="40" rx="6" fill="#f8fafc" stroke="#4f46e5" strokeWidth="2" />
+            <text x="280" y="94" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#1e1b4b">OUTPUTS</text>
 
             {/* RAM Memory below */}
-            <rect x="100" y="175" width="120" height="20" fill="#fff" stroke="#000" strokeWidth="2" />
-            <text x="160" y="188" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#000">RAM (Primary Memory)</text>
+            <rect x="100" y="175" width="120" height="20" rx="4" fill="#ffffff" stroke="#334155" strokeWidth="1.5" />
+            <text x="160" y="187" fontSize="8" fontWeight="bold" textAnchor="middle" fill="#475569">RAM (Primary Memory)</text>
 
             {/* Connective Paths */}
-            <line x1="70" y1="90" x2="100" y2="90" stroke="#000" strokeWidth="2" markerEnd="url(#arrow)" />
-            <line x1="220" y1="90" x2="250" y2="90" stroke="#000" strokeWidth="2" />
-            <line x1="160" y1="165" x2="160" y2="175" stroke="#000" strokeWidth="2" />
+            <line x1="70" y1="90" x2="100" y2="90" stroke="#4f46e5" strokeWidth="2" markerEnd="url(#arrow)" />
+            <line x1="220" y1="90" x2="250" y2="90" stroke="#4f46e5" strokeWidth="2" />
+            <line x1="160" y1="165" x2="160" y2="175" stroke="#334155" strokeWidth="1.5" strokeDasharray="2 2" />
 
             {/* Arrow Marker Definitions */}
             <defs>
               <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#000" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#4f46e5" />
               </marker>
             </defs>
           </svg>
         </div>
 
-        <div className="md:col-span-5 space-y-2">
-          <div className="text-[10px] font-black uppercase text-gray-500">System Bus Routing</div>
-          <h5 className="text-xs font-bold uppercase text-black">BUS ROLES DURING MACHINE CYCLE</h5>
-          <p className="text-xs text-gray-700 leading-relaxed font-medium">
-            1. <strong>Fetch:</strong> Address lines index the target command, control lines trigger a READ action, and data lines feed the Instruction parameter back internally to the CPU's Control Unit registry.
+        <div className="md:col-span-5 space-y-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">System Bus Routing</div>
+          <h5 className="text-xs font-bold text-slate-900 uppercase">BUS ROLES DURING MACHINE CYCLE</h5>
+          <p className="text-xs text-slate-600 leading-relaxed font-normal">
+            1. <strong className="text-slate-800">Fetch:</strong> Address lines index target commands in RAM. Control lines fire a READ pulse, and data lines route instructions back into the Control Unit registry.
             <br />
-            2. <strong>Calculate:</strong> The CU schedules the ALU to complete the calculation.
+            2. <strong className="text-slate-800">Calculate:</strong> The CU decodes parameters and tasks the Arithmetic Logic Unit (ALU) to carry out the core logic gate calculation.
             <br />
-            3. <strong>Store:</strong> Finished values are routed back to the RAM grid over data lines.
+            3. <strong className="text-slate-800">Store:</strong> Outputs are transmitted back over the data bus lines to register offsets in physical memory.
           </p>
         </div>
       </div>
@@ -355,30 +424,39 @@ function CpuBusDiagram() {
 // Two's complement diagram
 function TwoComplementDiagram() {
   return (
-    <div className="mt-6 bg-gray-50 border border-black p-6 space-y-4">
-      <div className="text-[11px] font-black uppercase tracking-widest text-black border-b border-gray-200 pb-2">
-        Representation Circle: Binary Two's Complement (8-bit numbers)
+    <div className="mt-8 bg-slate-50/70 rounded-2xl border border-slate-200/80 p-5 md:p-6 space-y-5 shadow-sm">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-3">
+        Representation Range: Binary Two's Complement (8-bit numbers)
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
         <div className="md:col-span-12 font-medium text-xs leading-relaxed space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-3 border border-black space-y-1">
-              <span className="font-black text-black">Positive Domain</span>
-              <p className="text-[11px] text-gray-600 leading-tight">
-                Bit patterns starting with <strong>0</strong> represent standard positive values from 00000000 (0) extending up to 01111111 (127).
+            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm space-y-1.5">
+              <span className="font-bold text-emerald-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                Positive Domain
+              </span>
+              <p className="text-[11px] text-slate-500 leading-relaxed font-normal">
+                Bit patterns starting with <strong className="text-slate-800">0</strong> represent positive integers from <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">00000000</code> (0) up to <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">01111111</code> (127).
               </p>
             </div>
-            <div className="bg-white p-3 border border-black space-y-1">
-              <span className="font-black text-black">Negative Domain</span>
-              <p className="text-[11px] text-gray-600 leading-tight">
-                Patterns starting with <strong>1</strong> represent negative scores from 11111111 (-1) descending down to 10000000 (-128).
+            <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm space-y-1.5">
+              <span className="font-bold text-rose-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                Negative Domain
+              </span>
+              <p className="text-[11px] text-slate-500 leading-relaxed font-normal">
+                Patterns starting with <strong className="text-slate-800">1</strong> denote negative integers from <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">11111111</code> (-1) down to <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">10000000</code> (-128).
               </p>
             </div>
-            <div className="bg-white p-3 border border-black space-y-1">
-              <span className="font-black text-black">Zero-Handling Success</span>
-              <p className="text-[11px] text-gray-600 leading-tight">
-                Two's complement provides a single clean representation of zero (00000000), resolving the double zero problem of signed-magnitude.
+            <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm space-y-1.5">
+              <span className="font-bold text-indigo-800 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                Single-Zero Success
+              </span>
+              <p className="text-[11px] text-slate-500 leading-relaxed font-normal">
+                Resolves the dual-zero error of signed-magnitude. Provides one clear representation of zero (<code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">00000000</code>), streamlining CPU arithmetic circuits.
               </p>
             </div>
           </div>
@@ -400,22 +478,22 @@ function BooleanAlgebraGates() {
   ];
 
   return (
-    <div className="mt-6 bg-gray-50 border border-black p-6 space-y-4">
-      <div className="text-[11px] font-black uppercase tracking-widest text-black border-b border-gray-200 pb-2">
+    <div className="mt-8 bg-slate-50/70 rounded-2xl border border-slate-200/80 p-5 md:p-6 space-y-5 shadow-sm">
+      <div className="text-xs font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-3">
         Boolean Operators &amp; Equivalent Silicon Gates
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {gates.map((g, idx) => (
-          <div key={idx} className="bg-white p-4 border border-black space-y-2">
-            <div className="flex justify-between items-center border-b border-gray-100 pb-1.5">
-              <span className="text-xs font-black uppercase text-black">{g.name} Gate</span>
-              <span className="text-[10px] font-mono text-gray-500 font-bold">{g.symbol}</span>
+          <div key={idx} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-2 hover:-translate-y-1 hover:shadow-md transition-all duration-300 group">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+              <span className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{g.name} Gate</span>
+              <span className="text-[10px] font-mono font-bold bg-slate-50 text-indigo-600 px-1.5 py-0.5 rounded border border-slate-100">{g.symbol}</span>
             </div>
-            <p className="text-xs text-gray-600 leading-snug font-medium">
-              <strong>Logic:</strong> {g.output}
+            <p className="text-xs text-slate-500 leading-snug font-normal">
+              <strong className="text-slate-700">Logic:</strong> {g.output}
             </p>
-            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-tight">
-              Gate Style: {g.visual}
+            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none pt-1">
+              Gate Shape: {g.visual}
             </div>
           </div>
         ))}

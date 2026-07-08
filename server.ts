@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-const PORT = parseInt(process.env.PORT || "3000", 10);
+const PORT = 3000;
 
 // Initialize Gemini client on the server
 let genAI: GoogleGenAI | null = null;
@@ -30,6 +30,62 @@ function getGenAI(): GoogleGenAI {
   return genAI;
 }
 
+// Helper function to call Gemini API with retry and fallback
+async function generateContentWithRetry(
+  ai: GoogleGenAI,
+  contents: any[],
+  config: any
+) {
+  const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+  let lastError: any = null;
+
+  for (const modelName of modelsToTry) {
+    let delay = 1000;
+    const maxRetries = 2;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Attempting Gemini API call with model: ${modelName} (attempt ${attempt + 1}/${maxRetries + 1})`);
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents,
+          config,
+        });
+        return response;
+      } catch (err: any) {
+        lastError = err;
+        console.error(`Error with model ${modelName} on attempt ${attempt + 1}:`, err);
+        
+        // Extract status code and message to detect transient errors
+        const statusCode = err?.status || err?.code || (err?.error && err.error.code);
+        const errorMessage = String(err?.message || err || "").toUpperCase();
+        
+        const isTransient = 
+          statusCode === 503 || 
+          statusCode === 429 || 
+          statusCode === 500 ||
+          errorMessage.includes("503") ||
+          errorMessage.includes("DEMAND") ||
+          errorMessage.includes("UNAVAILABLE") ||
+          errorMessage.includes("LIMIT") ||
+          errorMessage.includes("OVERLOADED") ||
+          errorMessage.includes("RESOURCE_EXHAUSTED");
+
+        if (isTransient && attempt < maxRetries) {
+          console.log(`Transient error or rate limit hit. Retrying in ${delay}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2;
+        } else {
+          // Break the inner loop and fall back to the next model if retries are exhausted or it's a fatal error
+          break;
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("Failed to generate content after trying all fallback models.");
+}
+
 app.use(express.json());
 
 // API route for AI Tutor
@@ -44,16 +100,12 @@ app.post("/api/chat", async (req, res) => {
 
     // Prepare a comprehensive, friendly context message to keep the tutor grounded in CSC 101.
     const systemInstruction = 
-      "You are an expert, encouraging, and friendly Computer Science 101 (CSC 101) AI Tutor. " +
-      "Your goal is to help students learn foundation computing topics, including: " +
-      "1. Computer Science foundations & 3 traditions (math, engineering, science), and tool requirements (such as MTBF).\n" +
-      "2. History (Abacus, Napier, Babbage/Lovelace, WWII, ENIAC, Turing, Shockley/transistor, Moore's Law).\n" +
-      "3. Hardware & Memory (Von Neumann, CPU CU/ALU, Fetch-Decode-Execute cycle, RAM/ROM, Secondary storage/sectors, CD lands/pits).\n" +
-      "4. Operating Systems (System vs application, CPU threads, RAM allocation, CLI vs GUI, Linux/Windows history).\n" +
-      "5. Numbers & Bases (Decimal, Binary, Octal, Hex, and radix points / fraction conversions).\n" +
-      "6. Logic & Boolean Algebra (Gates, logical equations, truth tables, AND, OR, NOT, NAND, NOR, XOR, universal gates).\n" +
-      "7. Communications & SDM (LAN/WAN, Topologies, Client/Server vs P2P, Intranet vs Extranet, and 6 steps of the Software Development Method).\n\n" +
-      "Always answer in clear, conversational, and pedagogical language, breaking down complex topics gently. Use scannable bullet points and bold key terms. Avoid dry jargon unless you explain it, and never praise yourself.";
+      "You are an intelligent, encouraging, and highly accurate Computer Science 101 (CSC 101) study companion for university students.\n\n" +
+      "Your primary goal is to answer the student's questions, summarize concepts, and create study materials based on the CSC 101 curriculum and chapters. Follow these strict rules when answering:\n" +
+      "1. Primary Source: Search the CSC 101 curriculum standards (Foundations/MTBF, History, Hardware/Von Neumann, Operating Systems, Numbers & Bases/Conversions, Logic Gates, Network Topologies, and Software Development Method) first. If the answer is found in these core topics, use that information to construct your response.\n" +
+      "2. Secondary Source: If the student asks a question not covered in the core curriculum, or asks for real-world examples to explain a concept better, you may use broader internet and computer science general knowledge.\n" +
+      "3. Transparency: Whenever you bring in information, facts, or examples from outside the uploaded/standard core curriculum, you MUST explicitly tell the student. Use a phrase like: 'According to external sources...' or 'While not in your uploaded notes, generally speaking...'\n" +
+      "4. Tone: Keep explanations clear, academic but accessible, and format your answers with scannable bullet points and bold text for easy reading. Avoid dry jargon unless you explain it, and never praise yourself.";
 
     // Use chats API or simple content generation with history
     // Since we want to pass history easily, we can format history into contents
@@ -73,13 +125,9 @@ app.post("/api/chat", async (req, res) => {
       parts: [{ text: message }],
     });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      },
+    const response = await generateContentWithRetry(ai, contents, {
+      systemInstruction,
+      temperature: 0.7,
     });
 
     res.json({ text: response.text });
@@ -93,7 +141,10 @@ app.post("/api/chat", async (req, res) => {
 async function initializeServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: false
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
