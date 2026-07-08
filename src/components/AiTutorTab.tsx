@@ -58,7 +58,11 @@ export default function AiTutorTab() {
     setErrorMessage(null);
 
     try {
-      const response = await fetch("/api/chat", {
+      // 1. Sanitize the API Endpoint: Support custom absolute API URL from environment variables, or default to relative path
+      const apiBase = (import.meta as any).env?.VITE_API_URL || "";
+      const apiEndpoint = apiBase ? `${apiBase.replace(/\/+$/, "")}/api/chat` : "/api/chat";
+
+      const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -67,16 +71,56 @@ export default function AiTutorTab() {
         })
       });
 
+      // 2. Implement Safe JSON Parsing
+      const contentType = response.headers.get("content-type") || "";
+      const isJson = contentType.includes("application/json");
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP error ${response.status}`);
+        let errMsg = `HTTP error ${response.status}`;
+        if (isJson) {
+          try {
+            const errorData = await response.json();
+            errMsg = errorData.error || errMsg;
+          } catch (jsonErr) {
+            // Proceed with status message if JSON parse fails
+          }
+        } else {
+          // Catch raw text when HTML page is returned (e.g. 404 or 500 router page)
+          const rawText = await response.text();
+          console.warn("Non-JSON error response received:", rawText.slice(0, 200));
+          errMsg = "Server busy, trying to reconnect... (Received invalid server response structure)";
+        }
+        throw new Error(errMsg);
+      }
+
+      // Check if response is actually JSON even if status is 200 (common SPA route fallback issue)
+      if (!isJson) {
+        const rawText = await response.text();
+        console.warn("Successful status returned non-JSON content type:", rawText.slice(0, 200));
+        throw new Error("Server busy, trying to reconnect... (The server responded with an HTML page instead of API response payload)");
       }
 
       const data = await response.json();
+      if (!data || typeof data.text !== "string") {
+        throw new Error("Invalid response format received from AI companion.");
+      }
+
       setMessages(prev => [...prev, { role: "model", content: data.text }]);
     } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message || "Could not connect to the server. Please verify your internet connection and make sure your server is running.");
+      console.error("AI Tutor submission failed:", err);
+      const originalMessage = err.message || "";
+      let userFriendlyMessage = originalMessage;
+
+      // Catch and sanitize standard JSON parser crashes
+      if (
+        originalMessage.includes("Unexpected token") || 
+        originalMessage.includes("is not valid JSON") || 
+        originalMessage.includes("JSON.parse")
+      ) {
+        userFriendlyMessage = "Server busy, trying to reconnect... (The system encountered an unexpected data format or routing issue)";
+      }
+
+      setErrorMessage(userFriendlyMessage || "Could not connect to the server. Please verify your internet connection and make sure your server is running.");
     } finally {
       setIsLoading(false);
     }
