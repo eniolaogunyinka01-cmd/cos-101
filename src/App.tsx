@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "motion/react";
+import { Analytics } from "@vercel/analytics/react";
 import HandbookTab from "./components/HandbookTab";
 import ToolsTab from "./components/ToolsTab";
 import QuizTab from "./components/QuizTab";
@@ -300,6 +301,7 @@ export default function App() {
           Crafted for University of Ibadan Classmates
         </span>
       </footer>
+      <Analytics />
     </div>
   );
 }
