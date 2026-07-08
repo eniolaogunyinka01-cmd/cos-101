@@ -20,19 +20,17 @@ import {
   Loader2,
   LogOut
 } from "lucide-react";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "./firebase";
-import { signOut } from "./authService";
+import { subscribeToAuthChanges, LocalUser, signOut } from "./authService";
 import AuthScreen from "./components/AuthScreen";
 
 type TabType = "handbook" | "tools" | "quiz" | "tutor";
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<LocalUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = subscribeToAuthChanges((user) => {
       setCurrentUser(user);
       setAuthLoading(false);
     });

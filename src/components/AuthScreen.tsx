@@ -1,8 +1,14 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { signInWithGoogle } from "../authService";
+import { 
+  signIn, 
+  signUp, 
+  isValidEmail 
+} from "../authService";
 import { 
   Cpu, 
+  Mail, 
+  Lock, 
   Sparkles, 
   Loader2, 
   AlertTriangle,
@@ -16,39 +22,80 @@ interface AuthScreenProps {
   onAuthSuccess: () => void;
 }
 
+type AuthMode = "signin" | "signup";
+
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
+  const [mode, setMode] = useState<AuthMode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  
+  // Feedback states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const handleGoogleSignIn = async () => {
+  const isEmailValid = isValidEmail(email);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
     setSuccess(null);
+
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    if (!isValidEmail(cleanEmail)) {
+      setError("Please enter a valid email address format (e.g. user@example.com).");
+      return;
+    }
+
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const res = await signInWithGoogle();
-      if (res.error) {
-        setError(res.error);
-        setLoading(false);
-      } else if (res.user) {
-        setSuccess(`Welcome, ${res.user.displayName || "Student"}! Redirecting to study portal...`);
-        setTimeout(() => {
-          onAuthSuccess();
-        }, 1500);
+      if (mode === "signin") {
+        const res = await signIn(cleanEmail, password);
+        if (res.error) {
+          setError(res.error);
+        } else {
+          setSuccess(`Welcome back! Accessing study portal...`);
+          setTimeout(() => {
+            onAuthSuccess();
+          }, 1000);
+        }
       } else {
-        setError("Unable to authenticate. Please try again.");
-        setLoading(false);
+        const res = await signUp(cleanEmail, password);
+        if (res.error) {
+          setError(res.error);
+        } else {
+          setSuccess("Account created! Logging you in automatically...");
+          setTimeout(() => {
+            onAuthSuccess();
+          }, 1000);
+        }
       }
     } catch (err: any) {
-      setError("An unexpected authentication error occurred. Please try again.");
+      setError("An unexpected error occurred. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 text-white relative overflow-hidden px-4 py-12">
-      {/* Dynamic ambient background glows */}
+    <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 text-white relative overflow-hidden px-4 py-12 font-sans">
+      {/* Decorative ambient background glows */}
       <div className="absolute top-1/4 left-1/4 w-[350px] h-[350px] bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-[350px] h-[350px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -78,29 +125,62 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           </motion.div>
         </div>
 
-        {/* Main Sign In Card */}
+        {/* Main Auth Card */}
         <motion.div 
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
-          className="bg-slate-900/80 backdrop-blur-lg border border-slate-800 rounded-3xl p-8 shadow-2xl overflow-hidden relative"
+          className="bg-slate-900/80 backdrop-blur-lg border border-slate-800 rounded-3xl p-8 shadow-2xl overflow-hidden relative animate-fade-in"
         >
-          {/* Decorative Corner Glow */}
-          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+          {/* Mode Selector Tabs */}
+          <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 mb-6">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signin");
+                setError(null);
+                setSuccess(null);
+              }}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all duration-300 cursor-pointer ${
+                mode === "signin"
+                  ? "bg-indigo-600 text-white shadow-md"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                setError(null);
+                setSuccess(null);
+              }}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all duration-300 cursor-pointer ${
+                mode === "signup"
+                  ? "bg-indigo-600 text-white shadow-md"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
 
           {/* Title & Description */}
-          <div className="mb-8 text-center sm:text-left">
-            <h2 className="text-lg font-bold text-white flex items-center justify-center sm:justify-start gap-2">
-              <span>Sign In to Access Portal</span>
+          <div className="mb-6">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <span>{mode === "signin" ? "Student Sign In" : "Register Student Account"}</span>
               <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
             </h2>
             <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-              Authenticate via Google to automatically save your progress, practice quiz history, reading stats, and AI tutor interactions.
+              {mode === "signin" 
+                ? "Enter your registered credentials to access your progress, sandbox workspace, and custom study handbook."
+                : "Register with any valid email address to enable personalized quizzes, active notes trackers, and AI assistant."}
             </p>
           </div>
 
-          <div className="space-y-6">
-            {/* Success & Error Banners */}
+          <form onSubmit={handleAuth} className="space-y-4">
+            {/* Feedback Alerts */}
             <AnimatePresence mode="wait">
               {error && (
                 <motion.div 
@@ -126,41 +206,126 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               )}
             </AnimatePresence>
 
-            {/* Google Sign In Button */}
+            {/* Email Field */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g., student@domain.com"
+                  className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
+                  required
+                />
+              </div>
+
+              {email && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[10px]">
+                  {isEmailValid ? (
+                    <span className="text-emerald-400 flex items-center gap-1 font-medium">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Valid email address format.
+                    </span>
+                  ) : (
+                    <span className="text-amber-400 flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Please enter a valid format (e.g. user@example.com).
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-slate-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-200"
+                  required
+                />
+              </div>
+              {password && password.length < 6 && (
+                <div className="mt-1.5 text-[10px] text-rose-400 font-medium">
+                  Password must be at least 6 characters.
+                </div>
+              )}
+            </div>
+
+            {/* Submit Button */}
             <button
-              onClick={handleGoogleSignIn}
+              type="submit"
               disabled={loading}
-              className="w-full bg-white hover:bg-slate-100 disabled:bg-slate-800 text-slate-900 disabled:text-slate-500 font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-3 cursor-pointer shadow-lg hover:shadow-indigo-500/10 active:scale-[0.98] transition-all duration-200"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white disabled:text-slate-500 font-semibold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg hover:shadow-indigo-500/20 active:scale-[0.98] transition-all duration-200 mt-6"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                  <span>Connecting Securely...</span>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Processing...</span>
                 </>
               ) : (
                 <>
-                  {/* Google Custom SVG Logo */}
-                  <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-                  </svg>
-                  <span>Continue with Google</span>
-                  <ArrowRight className="w-4 h-4 text-slate-500 shrink-0 ml-1" />
+                  <span>{mode === "signin" ? "Sign In to Portal" : "Register and Sign In"}</span>
+                  <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
 
+            {/* Mode swappers link */}
+            <div className="text-center mt-4">
+              {mode === "signin" ? (
+                <p className="text-xs text-slate-400">
+                  New to the portal?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("signup");
+                      setError(null);
+                      setSuccess(null);
+                    }}
+                    className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                  >
+                    Create Account
+                  </button>
+                </p>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Already registered?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("signin");
+                      setError(null);
+                      setSuccess(null);
+                    }}
+                    className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                </p>
+              )}
+            </div>
+
             {/* Privacy & Security Footnote */}
-            <div className="flex items-start gap-2.5 bg-slate-950/40 border border-slate-850 p-3.5 rounded-2xl">
+            <div className="flex items-start gap-2.5 bg-slate-950/40 border border-slate-850 p-3.5 rounded-2xl mt-4">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div className="text-[10.5px] text-slate-400 leading-normal">
-                <span className="font-semibold text-slate-300 block mb-0.5">Secure Authentication Session</span>
-                Credentials are encrypted and handled directly via Google Identity services. We never save or access your Google account password.
+              <div className="text-[10px] text-slate-400 leading-normal">
+                <span className="font-semibold text-slate-300 block mb-0.5">Local Client-Side Storage</span>
+                Your credentials and course progress are securely encrypted and saved inside your browser's private local workspace.
               </div>
             </div>
-          </div>
+          </form>
         </motion.div>
         
         {/* Footer info links */}
