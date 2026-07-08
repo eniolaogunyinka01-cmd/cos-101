@@ -107,7 +107,7 @@ export default function QuizTab() {
     setUserAnswersHistory([]);
   };
 
-  const activeQuestion = activeSet[currentQuestionIndex];
+  const activeQuestion = activeSet[currentQuestionIndex] || activeSet[0] || QUIZ_QUESTIONS[0];
 
   const handleSelectOption = (idx: number) => {
     if (isAnswerConfirmed) return;

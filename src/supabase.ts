@@ -8,8 +8,8 @@ let supabaseClient: SupabaseClient | null = null;
  */
 export function getSupabase(): SupabaseClient {
   if (!supabaseClient) {
-    const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+    const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+    const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
       throw new Error(
@@ -29,10 +29,36 @@ export function getSupabase(): SupabaseClient {
 }
 
 /**
- * Checks if Supabase credentials have been configured.
+ * Checks if Supabase credentials have been configured and are valid.
  */
 export function isSupabaseConfigured(): boolean {
-  const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
-  return !!(supabaseUrl && supabaseAnonKey);
+  try {
+    const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+    const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return false;
+    }
+
+    const urlStr = String(supabaseUrl).trim();
+    const keyStr = String(supabaseAnonKey).trim();
+
+    if (
+      urlStr === "" ||
+      keyStr === "" ||
+      urlStr.includes("YOUR_") ||
+      keyStr.includes("YOUR_") ||
+      urlStr.includes("PLACEHOLDER") ||
+      keyStr.includes("PLACEHOLDER") ||
+      urlStr.includes("insert-") ||
+      !urlStr.startsWith("http")
+    ) {
+      return false;
+    }
+
+    return true;
+  } catch (e) {
+    console.error("Error checking Supabase configuration status:", e);
+    return false;
+  }
 }

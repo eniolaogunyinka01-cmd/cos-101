@@ -21,7 +21,16 @@ function getGenAI(): GoogleGenAI {
   return genAI;
 }
 
-// Helper function to call Gemini API with retry and fallback
+// Helper function to call Gemini API with retry, timeout, and fallback
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`API request timed out after ${ms}ms`)), ms)
+    )
+  ]);
+}
+
 async function generateContentWithRetry(
   ai: GoogleGenAI,
   contents: any[],
@@ -32,26 +41,30 @@ async function generateContentWithRetry(
 
   for (const modelName of modelsToTry) {
     let delay = 1000;
-    const maxRetries = 2;
+    const maxRetries = 1; // Limit retries to 1 to speed up fallback transition
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         console.log(`Attempting Gemini API call with model: ${modelName} (attempt ${attempt + 1}/${maxRetries + 1})`);
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents,
-          config,
-        });
+        const response = await withTimeout(
+          ai.models.generateContent({
+            model: modelName,
+            contents,
+            config,
+          }),
+          4000 // 4 seconds timeout per attempt
+        );
         return response;
       } catch (err: any) {
         lastError = err;
-        console.error(`Error with model ${modelName} on attempt ${attempt + 1}:`, err);
+        console.error(`Error with model ${modelName} on attempt ${attempt + 1}:`, err.message || err);
         
         // Extract status code and message to detect transient errors
         const statusCode = err?.status || err?.code || (err?.error && err.error.code);
         const errorMessage = String(err?.message || err || "").toUpperCase();
         
         const isTransient = 
+          errorMessage.includes("TIMED OUT") ||
           statusCode === 503 || 
           statusCode === 429 || 
           statusCode === 500 ||
@@ -65,7 +78,7 @@ async function generateContentWithRetry(
         if (isTransient && attempt < maxRetries) {
           console.log(`Transient error or rate limit hit. Retrying in ${delay}ms...`);
           await new Promise((resolve) => setTimeout(resolve, delay));
-          delay *= 2;
+          delay *= 1.5;
         } else {
           // Break the inner loop and fall back to the next model if retries are exhausted or it's a fatal error
           break;
